@@ -7,6 +7,7 @@ package main
 import (
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,7 +35,7 @@ var (
 	stockDataRefreshHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "stock_data_refresh_duration_milliseconds",
 		Help:    "...",
-		Buckets: []float64{10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0},
+		Buckets: []float64{10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 750.0, 1000.0, 2500.0, 5000.0},
 	})
 )
 
@@ -51,31 +52,44 @@ func captureStockData(config *Config, iexClient *iex.Client) {
 	log.Printf("loading stock data for %s\n", strings.Join(symbols, ", "))
 	for {
 		start := time.Now()
+		wg := sync.WaitGroup{}
 
+		// Capture stock metadata
 		// TODO(adam): only run this when the market is open
-		tops, err := iexClient.GetTOPS(symbols)
-		if err != nil {
-			log.Printf("ERROR: in TOPS: %v", err)
-		} else {
-			for i := range tops {
-				t := tops[i]
-				stockAsks.WithLabelValues(t.Symbol).Set(t.AskPrice)
-				stockBids.WithLabelValues(t.Symbol).Set(t.BidPrice)
-				stockVolumes.WithLabelValues(t.Symbol).Set(float64(t.Volume))
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tops, err := iexClient.GetTOPS(symbols)
+			if err != nil {
+				log.Printf("ERROR: in TOPS: %v", err)
+			} else {
+				for i := range tops {
+					t := tops[i]
+					stockAsks.WithLabelValues(t.Symbol).Set(t.AskPrice)
+					stockBids.WithLabelValues(t.Symbol).Set(t.BidPrice)
+					stockVolumes.WithLabelValues(t.Symbol).Set(float64(t.Volume))
+				}
 			}
-		}
+		}()
 
-		quotes, err := iexClient.GetLast(symbols)
-		if err != nil {
-			panic(err)
-		}
-		for i := range symbols {
-			stockPrices.WithLabelValues(symbols[i]).Set(quotes[i].Price)
-		}
+		// Get stock quote
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			quotes, err := iexClient.GetLast(symbols)
+			if err != nil {
+				log.Printf("ERROR: in GetLast: %v", err)
+			} else {
+				for i := range symbols {
+					stockPrices.WithLabelValues(symbols[i]).Set(quotes[i].Price)
+				}
+			}
+		}()
 
-		// Capture loop time as milliseconds
-		stockDataRefreshHistogram.Observe(float64(time.Since(start).Nanoseconds() / 1e6))
-
-		time.Sleep(*flagInterval) // TODO(adam): When outside market hours turn this down to 5mins? or 30mins?
+		wg.Wait()
+		diff := time.Since(start).Nanoseconds()
+		stockDataRefreshHistogram.Observe(float64(diff / 1e6))
+		// TODO(adam): When outside market hours turn this down to 5mins? or 30mins?
+		time.Sleep(*flagInterval - time.Duration(diff))
 	}
 }

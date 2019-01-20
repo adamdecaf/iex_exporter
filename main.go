@@ -29,20 +29,7 @@ var (
 	flagConfigFile = flag.String("config.file", "", "Path to config file")
 	flagInterval   = flag.Duration("interval", defaultInterval, "Interval to check metrics at")
 	flagVersion    = flag.Bool("version", false, "Print the iex_exporter version")
-
-	// Prometheus metrics
-	stockQuotes = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "stock_quotes",
-			Help: "..",
-		},
-		[]string{"price"},
-	)
 )
-
-func init() {
-	prometheus.MustRegister(stockQuotes)
-}
 
 func main() {
 	flag.Parse()
@@ -77,24 +64,11 @@ func main() {
 		}
 	}
 
-	// Bring up IEX client
+	// Bring up IEX client and exporters
 	iexClient := iex.NewClient(&http.Client{
 		Timeout: 5 * time.Second,
 	})
-
-	go func() {
-		symbols := config.Stocks.Symbols
-		for {
-			quotes, err := iexClient.GetLast(symbols)
-			if err != nil {
-				panic(err)
-			}
-			for i := range symbols {
-				stockQuotes.WithLabelValues(symbols[i]).Set(quotes[i].Price)
-			}
-			time.Sleep(*flagInterval) // TODO(adam): When outside market hours turn this down to 5mins? or 30mins?
-		}
-	}()
+	go captureStockData(config, iexClient)
 
 	// Start Prometheus metrics endpoint
 	h := promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{})

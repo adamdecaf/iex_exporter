@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/timpalpant/go-iex"
 )
 
 const Version = "0.1.0-dev"
@@ -22,7 +23,20 @@ var (
 	// flagConfigFile
 	flagInterval = flag.Duration("interval", defaultInterval, "Interval to check domains at")
 	flagVersion  = flag.Bool("version", false, "Print the rdap_exporter version")
+
+	// Prometheus metrics
+	stockQuotes = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "stock_quotes",
+			Help: "..",
+		},
+		[]string{"price"},
+	)
 )
+
+func init() {
+	prometheus.MustRegister(stockQuotes)
+}
 
 func main() {
 	flag.Parse()
@@ -37,6 +51,25 @@ func main() {
 		panic("IEX_API_TOKEN is required!")
 	}
 	log.Printf("Starting iex_exporter (Version: %s)\n", Version)
+
+	// Bring up IEX client
+	iexClient := iex.NewClient(&http.Client{
+		Timeout: 5 * time.Second,
+	})
+
+	symbols := []string{"AAPL", "FB"}
+	go func() {
+		for {
+			quotes, err := iexClient.GetLast(symbols)
+			if err != nil {
+				panic(err)
+			}
+			for i := range symbols {
+				stockQuotes.WithLabelValues(symbols[i]).Set(quotes[i].Price)
+			}
+			time.Sleep(*flagInterval)
+		}
+	}()
 
 	// Start Prometheus metrics endpoint
 	h := promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{})

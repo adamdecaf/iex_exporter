@@ -34,3 +34,5 @@ github.com/timpalpant/go-iex
 github.com/timpalpant/go-iex/iextp
 github.com/timpalpant/go-iex/iextp/deep
 github.com/timpalpant/go-iex/iextp/tops
+# gopkg.in/yaml.v2 v2.2.2
+gopkg.in/yaml.v2

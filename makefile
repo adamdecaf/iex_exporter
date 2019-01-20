@@ -11,5 +11,8 @@ build:
 docker: build
 	docker build --pull -t adamdecaf/iex_exporter:$(VERSION) -f Dockerfile .
 
+release-push:
+	docker push adamdecaf/iex_exporter:$(VERSION)
+
 test:
 	go test -v ./...

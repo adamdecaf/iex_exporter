@@ -45,12 +45,34 @@ func init() {
 	prometheus.MustRegister(stockPrices)
 	prometheus.MustRegister(stockVolumes)
 	prometheus.MustRegister(stockDataRefreshHistogram)
+
+	loc, _ := time.LoadLocation("America/New_York")
+	if estLocation == nil {
+		estLocation = loc
+	}
+}
+
+var estLocation *time.Location
+
+func marketOpen(now time.Time) bool {
+	now = now.In(estLocation)
+	if now.Weekday() == time.Sunday || now.Weekday() == time.Saturday {
+		return false
+	}
+	if (now.Hour() < 9 || now.Hour() > 16) || (now.Hour() == 16 && now.Minute() > 30) { // 9am to 4:30pm
+		return false
+	}
+	return true
 }
 
 func captureStockData(config *Config, iexClient *iex.Client) {
 	symbols := config.Stocks.Symbols
 	log.Printf("loading stock data for %s\n", strings.Join(symbols, ", "))
 	for {
+		if !marketOpen(time.Now()) {
+			continue
+		}
+
 		start := time.Now()
 		wg := sync.WaitGroup{}
 

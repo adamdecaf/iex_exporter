@@ -39,20 +39,18 @@ var (
 	})
 )
 
+var estLocation *time.Location
+
 func init() {
+	loc, _ := time.LoadLocation("America/New_York")
+	estLocation = loc
+
 	prometheus.MustRegister(stockAsks)
 	prometheus.MustRegister(stockBids)
 	prometheus.MustRegister(stockPrices)
 	prometheus.MustRegister(stockVolumes)
 	prometheus.MustRegister(stockDataRefreshHistogram)
-
-	loc, _ := time.LoadLocation("America/New_York")
-	if estLocation == nil {
-		estLocation = loc
-	}
 }
-
-var estLocation *time.Location
 
 func marketOpen(now time.Time) bool {
 	now = now.In(estLocation)

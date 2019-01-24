@@ -77,7 +77,6 @@ func captureStockData(config *Config, iexClient *iex.Client) {
 		wg := sync.WaitGroup{}
 
 		// Capture stock metadata
-		// TODO(adam): only run this when the market is open
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -111,7 +110,6 @@ func captureStockData(config *Config, iexClient *iex.Client) {
 		wg.Wait()
 		diff := time.Since(start).Nanoseconds()
 		stockDataRefreshHistogram.Observe(float64(diff / 1e6))
-		// TODO(adam): When outside market hours turn this down to 5mins? or 30mins?
 		time.Sleep(*flagInterval - time.Duration(diff))
 	}
 }

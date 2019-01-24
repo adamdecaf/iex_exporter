@@ -19,7 +19,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const Version = "0.1.2-dev"
+const Version = "0.1.2"
 
 var (
 	defaultInterval, _ = time.ParseDuration("1m")
